@@ -28,4 +28,4 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: crprumordku73faml62p/voohoo-tg:latest
+          tags: cr.yandex/crprumordku73faml62p/voohoo-tg:latest
