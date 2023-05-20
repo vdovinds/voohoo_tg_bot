@@ -1,0 +1,31 @@
+name: Build and push docker-image
+
+on:
+  push:
+    branches:
+      - "main"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Login to yandex-cr
+        uses: docker/login-action@v2
+        with:
+          registry: cr.yandex
+          username: json_key
+          password: ${{ secrets.YCR_JSON_KEY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: crprumordku73faml62p/voohoo-tg:latest
