@@ -19,13 +19,7 @@ jobs:
           username: json_key
           password: ${{ secrets.YCR_JSON_KEY }}
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
       - name: Build and push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          file: ./Dockerfile
-          push: true
-          tags: cr.yandex/crprumordku73faml62p/voohoo-tg:latest
+        run: |
+          docker build -t cr.yandex/crprumordku73faml62p/voohoo-tg:latest .
+          docker push cr.yandex/crprumordku73faml62p/voohoo-tg:latest
