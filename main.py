@@ -15,12 +15,17 @@ bot = telebot.TeleBot(tg_bot_token)
 
 @bot.message_handler(commands=['help', 'start'])
 def say_welcome(message):
-    bot.send_message(message.chat.id, 'start', parse_mode="markdown")
+    text = """Привет! 👋
+Я хочу сделать процесс выбора новой виниловой пластинки еще приятнее и помогать не ошибаться с выбором.
+Пришли мне фотографию штрихкода с пластинки, и я найду ссылки на музыку из этого альбома."""
+
+    bot.send_message(message.chat.id, text, parse_mode="markdown")
 
 
 @bot.message_handler(func=lambda message: True)
 def check_answer(message):
-    bot.send_message(message.chat.id, 'send me barcode', parse_mode="markdown")
+    text = "Пришли мне фотографию штрихкода с пластинки, и я найду ссылки на музыку из этого альбома."
+    bot.send_message(message.chat.id, text, parse_mode="markdown")
 
 
 @bot.message_handler(content_types=["photo"])
