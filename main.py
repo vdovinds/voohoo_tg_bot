@@ -8,6 +8,10 @@ import pyzbar.pyzbar
 import telebot
 from pyzbar.wrapper import ZBarSymbol
 
+import message_texts
+
+# from message_texts import hello_text, on_text_received_message, cant_found_barcode_message, too_many_barcodes_message
+
 tg_bot_token = os.environ.get('TG_BOT_TOKEN')
 discogs_token = os.environ.get('DISCOGS_TOKEN')
 
@@ -16,30 +20,29 @@ bot = telebot.TeleBot(tg_bot_token)
 
 @bot.message_handler(commands=['help', 'start'])
 def say_welcome(message):
-    text = """Привет! 👋
-Я хочу сделать процесс выбора новой виниловой пластинки еще приятнее и помогать не ошибаться с выбором.
-Пришли мне фотографию штрихкода с пластинки, и я найду ссылки на музыку из этого альбома."""
-
-    bot.send_message(message.chat.id, text, parse_mode="markdown")
+    bot.send_message(message.chat.id, message_texts.hello_text, parse_mode="markdown")
 
 
 @bot.message_handler(func=lambda message: True)
-def check_answer(message):
-    text = "Пришли мне фотографию штрихкода с пластинки, и я найду ссылки на музыку из этого альбома."
-    bot.send_message(message.chat.id, text, parse_mode="markdown")
+def handle_text(message):
+    bot.reply_to(message, message_texts.on_text_received_message, parse_mode="markdown")
+
+
+@bot.message_handler(content_types=['document', 'audio'])
+def handle_docs_audio(message):
+    bot.reply_to(message, message_texts.on_file_received_message, parse_mode="markdown")
 
 
 @bot.message_handler(content_types=["photo"])
-def echo_msg(message):
-
+def handle_photo(message):
     detected_barcodes = find_barcodes(download_image(message))
     if not detected_barcodes:
         print("Barcode Not Detected!")
-        bot.send_message(message.chat.id, 'Cant find barcode', parse_mode="markdown")
+        bot.send_message(message.chat.id, message_texts.cant_found_barcode_message, parse_mode="markdown")
     elif len(detected_barcodes) > 1:
         print("More than 1 barcode found")
         print(detected_barcodes)
-        bot.send_message(message.chat.id, 'More than 1 barcode found', parse_mode="markdown")
+        bot.send_message(message.chat.id, message_texts.too_many_barcodes_message, parse_mode="markdown")
     else:
         print(f'Barcode found {detected_barcodes[0]}')
         discogs_response = discogs_search(detected_barcodes[0])
