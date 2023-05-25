@@ -6,6 +6,7 @@ import httpx
 import numpy as np
 import pyzbar.pyzbar
 import telebot
+from pyzbar.wrapper import ZBarSymbol
 
 tg_bot_token = os.environ.get('TG_BOT_TOKEN')
 discogs_token = os.environ.get('DISCOGS_TOKEN')
@@ -30,9 +31,8 @@ def check_answer(message):
 
 @bot.message_handler(content_types=["photo"])
 def echo_msg(message):
-    img_path = bot.get_file(message.photo[2].file_id).file_path
-    detected_barcodes = download_image_and_find_barcodes(img_path)
 
+    detected_barcodes = find_barcodes(download_image(message))
     if not detected_barcodes:
         print("Barcode Not Detected!")
         bot.send_message(message.chat.id, 'Cant find barcode', parse_mode="markdown")
@@ -43,7 +43,6 @@ def echo_msg(message):
     else:
         print(f'Barcode found {detected_barcodes[0]}')
         discogs_response = discogs_search(detected_barcodes[0])
-
         youtube_link = ''
         if discogs_response['videos']:
             youtube_link = "*YouTube:*\n"
@@ -59,12 +58,41 @@ def echo_msg(message):
         bot.send_message(message.chat.id, text, parse_mode="markdown")
 
 
-def download_image_and_find_barcodes(path):
-    img_url = f'https://api.telegram.org/file/bot{tg_bot_token}/{path}'
-    with urllib.request.urlopen(img_url) as response:
-        img_array = np.asarray(bytearray(response.read()), dtype="uint8")
-        image = cv2.imdecode(img_array, 0)
-        return pyzbar.pyzbar.decode(image)
+def download_image(message):
+    image_path = bot.get_file(message.photo[3].file_id).file_path
+    image_url = f'https://api.telegram.org/file/bot{tg_bot_token}/{image_path}'
+    with urllib.request.urlopen(image_url) as response:
+        image_array = np.asarray(bytearray(response.read()), dtype="uint8")
+        return cv2.imdecode(image_array, 1)
+
+
+def find_barcodes(image):
+    detected_barcodes = pyzbar.pyzbar.decode(image, symbols=[ZBarSymbol.EAN13])
+    if not detected_barcodes:
+        thresholded_image = threshold_image(image)
+        detected_barcodes_after_threshold = pyzbar.pyzbar.decode(thresholded_image, symbols=[ZBarSymbol.EAN13])
+        if not detected_barcodes_after_threshold:
+            rotated_image = rotate_image(thresholded_image, 45)
+            detected_barcodes_after_rotate = pyzbar.pyzbar.decode(rotated_image, symbols=[ZBarSymbol.EAN13])
+            detected_barcodes = detected_barcodes_after_rotate
+        else:
+            detected_barcodes = detected_barcodes_after_threshold
+
+    return detected_barcodes
+
+
+def threshold_image(image):
+    gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blur = cv2.bilateralFilter(gray_image, 9, 75, 75)
+    _, threshold = cv2.threshold(blur, 150, 255, cv2.THRESH_BINARY)
+    return threshold
+
+
+def rotate_image(image, angle):
+    (h, w) = image.shape[:2]
+    center = (int(w / 2), int(h / 2))
+    rotation_matrix = cv2.getRotationMatrix2D(center, angle, 0.8)
+    return cv2.warpAffine(image, rotation_matrix, (w, h))
 
 
 def discogs_search(barcode):
