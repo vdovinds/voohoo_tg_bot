@@ -1,21 +1,24 @@
 import os
+import urllib.parse
 import urllib.request
 
 import cv2
-import httpx
 import numpy as np
 import pyzbar.pyzbar
 import telebot
 from pyzbar.wrapper import ZBarSymbol
+from telebot.formatting import format_text
 
 import message_texts
-
-# from message_texts import hello_text, on_text_received_message, cant_found_barcode_message, too_many_barcodes_message
+from service.discogsService import DiscogsService
+from service.yandexService import YandexService
 
 tg_bot_token = os.environ.get('TG_BOT_TOKEN')
 discogs_token = os.environ.get('DISCOGS_TOKEN')
 
 bot = telebot.TeleBot(tg_bot_token)
+yandex_service = YandexService()
+discogs_service = DiscogsService(discogs_token)
 
 
 @bot.message_handler(commands=['help', 'start'])
@@ -45,20 +48,28 @@ def handle_photo(message):
         bot.send_message(message.chat.id, message_texts.too_many_barcodes_message, parse_mode="markdown")
     else:
         print(f'Barcode found {detected_barcodes[0]}')
-        discogs_response = discogs_search(detected_barcodes[0])
-        youtube_link = ''
-        if discogs_response['videos']:
-            youtube_link = "*YouTube:*\n"
-            for video in discogs_response['videos']:
-                youtube_link = f"{youtube_link}[{video['title']}]({video['uri']})\n"
-            youtube_link = f"{youtube_link}\n"
+        discogs_response = discogs_service.search_by_ean13(detected_barcodes[0].data)
 
-        text = f"*{discogs_response['title']}*\n\n" \
-               f"{youtube_link}" \
-               f"[Ссылка на яндекс](https://music.yandex.ru/search?text={discogs_response['title']}&type=albums)"
-        print(text)
+        if discogs_response:
+            yandex_response = yandex_service.search_by_title(discogs_response.title)
 
-        bot.send_message(message.chat.id, text, parse_mode="markdown")
+            message_text = format_text(
+                discogs_service.create_message(discogs_response),
+                yandex_service.create_message(yandex_response),
+                separator='\n\n'
+            )
+
+            print(message_text)
+            bot.send_message(
+                message.chat.id,
+                message_text,
+                parse_mode="MarkdownV2")
+        else:
+            bot.send_message(
+                message.chat.id,
+                f"Cant find info for lp with code:{detected_barcodes[0].data}",
+                parse_mode="markdown"
+            )
 
 
 def download_image(message):
@@ -96,24 +107,6 @@ def rotate_image(image, angle):
     center = (int(w / 2), int(h / 2))
     rotation_matrix = cv2.getRotationMatrix2D(center, angle, 0.8)
     return cv2.warpAffine(image, rotation_matrix, (w, h))
-
-
-def discogs_search(barcode):
-    search_response = httpx.get(
-        url='https://api.discogs.com/database/search',
-        params={
-            'q': int(barcode.data),
-            'token': discogs_token
-        }
-    ).json()['results'][0]
-    lp_response = httpx.get(search_response['resource_url']).json()
-
-    return {
-        'title': search_response['title'],
-        'cover': search_response['cover_image'],
-        'url': lp_response['uri'],
-        'videos': lp_response['videos'] if 'videos' in lp_response else []
-    }
 
 
 if __name__ == '__main__':
